@@ -34,7 +34,7 @@ namespace WeaponRestrict
     {
         [JsonPropertyName("MessagePrefix")] public string MessagePrefix { get; set; } = "\u1010\u0010[WeaponRestrict] ";
         [JsonPropertyName("RestrictMessage")] public string RestrictMessage { get; set; } = "\u0003{0}\u0001 is currently restricted to \u000F{1}\u0001 per team.";
-        [JsonPropertyName("DisabledMesage")] public string DisabledMesage { get; set; } = "\u0003{0}\u0001 is currently \u000Fdisabled\u0001.";
+        [JsonPropertyName("DisabledMessage")] public string DisabledMessage { get; set; } = "\u0003{0}\u0001 is currently \u000Fdisabled\u0001.";
 
         [JsonPropertyName("WeaponQuotas")]
         public Dictionary<string, float> WeaponQuotas { get; set; } = new Dictionary<string, float>()
@@ -151,8 +151,8 @@ namespace WeaponRestrict
                 hook.SetReturn(AcquireResult.AlreadyOwned);
 
                 string msg = "";
-                if (disabled && Config.DisabledMesage != "")
-                    msg = FormatChatMessage(Config.DisabledMesage, vdata.Name);
+                if (disabled && Config.DisabledMessage != "")
+                    msg = FormatChatMessage(Config.DisabledMessage, vdata.Name);
                 else if (Config.RestrictMessage != "")
                     msg = FormatChatMessage(Config.RestrictMessage, vdata.Name, limit.ToString());
 
