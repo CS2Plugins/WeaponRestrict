@@ -5,7 +5,7 @@ using CounterStrikeSharp.API.Modules.Config;
 using CounterStrikeSharp.API.Modules.Memory.DynamicFunctions;
 using CounterStrikeSharp.API.Modules.Admin;
 
-namespace WeaponRestricter
+namespace WeaponRestrict
 {
     // Possible results for CSPlayer::CanAcquire
     public enum AcquireResult : int
@@ -30,7 +30,7 @@ namespace WeaponRestricter
         Buy,
     };
 
-    public class WeaponRestricterConfig : BasePluginConfig
+    public class WeaponRestrictConfig : BasePluginConfig
     {
         [JsonPropertyName("MessagePrefix")] public string MessagePrefix { get; set; } = "\u1010\u0010[WeaponRestrict] ";
         [JsonPropertyName("RestrictMessage")] public string RestrictMessage { get; set; } = "\u0003{0}\u0001 is currently restricted to \u000F{1}\u0001 per team.";
@@ -55,7 +55,7 @@ namespace WeaponRestricter
         [JsonPropertyName("ConfigVersion")] public new int Version { get; set; } = 1;
     }
 
-    public class WeaponRestrictPlugin : BasePlugin, IPluginConfig<WeaponRestricterConfig>
+    public class WeaponRestrictPlugin : BasePlugin, IPluginConfig<WeaponRestrictConfig>
     {
         public override string ModuleName => "WeaponRestrict";
 
@@ -65,7 +65,7 @@ namespace WeaponRestricter
 
         public override string ModuleDescription => "Restricts player weapons based on total player or teammate count.";
 
-        public required WeaponRestricterConfig Config { get; set; }
+        public required WeaponRestrictConfig Config { get; set; }
 
         public required MemoryFunctionWithReturn<CCSPlayer_ItemServices, CEconItemView, AcquireMethod, NativeObject, AcquireResult>? CCSPlayer_CanAcquireFunc;
 
@@ -85,9 +85,9 @@ namespace WeaponRestricter
             base.Unload(hotReload);
         }
 
-        public void OnConfigParsed(WeaponRestricterConfig newConfig)
+        public void OnConfigParsed(WeaponRestrictConfig newConfig)
         {
-            newConfig = ConfigManager.Load<WeaponRestricterConfig>("WeaponRestricter");
+            newConfig = ConfigManager.Load<WeaponRestrictConfig>("WeaponRestrict");
             Config = newConfig;
         }
 
