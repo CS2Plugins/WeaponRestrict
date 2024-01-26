@@ -122,6 +122,9 @@ namespace WeaponRestrict
 
             var client = hook.GetParam<CCSPlayer_ItemServices>(0).Pawn.Value!.Controller.Value!.As<CCSPlayerController>();
 
+            if (client is null || !client.IsValid || !client.PawnIsAlive)
+                return HookResult.Continue;
+
             // Player is VIP proof
             if (Config.VIPFlag != "" && AdminManager.PlayerHasPermissions(client, Config.VIPFlag))
                 return HookResult.Continue;
