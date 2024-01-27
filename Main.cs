@@ -59,7 +59,7 @@ namespace WeaponRestrict
     {
         public override string ModuleName => "WeaponRestrict";
 
-        public override string ModuleVersion => "2.0.0";
+        public override string ModuleVersion => "2.1.0";
 
         public override string ModuleAuthor => "jon, sapphyrus & FireBird";
 
