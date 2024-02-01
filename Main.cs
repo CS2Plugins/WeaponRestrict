@@ -96,11 +96,14 @@ namespace WeaponRestrict
             int count = 0;
             foreach (CCSPlayerController player in players)
             {
+                // Skip invalid players and bots, extended null checks
+                if (player is null || !player.IsValid || player.IsBot || player.PlayerPawn is null || !player.PlayerPawn.IsValid || player.PlayerPawn.Value is null || player.PlayerPawn.Value.WeaponServices is null) continue;
+                
                 // Skip counting VIP players
                 if (Config.VIPFlag != "" && AdminManager.PlayerHasPermissions(player, Config.VIPFlag)) continue;
 
                 // Get all weapons
-                foreach (var weapon in player.PlayerPawn.Value!.WeaponServices!.MyWeapons)
+                foreach (var weapon in player.PlayerPawn.Value.WeaponServices.MyWeapons)
                 {
                     //Get the item definition and compare it to the count
                     if (weapon.Value!.DesignerName != name) continue;
