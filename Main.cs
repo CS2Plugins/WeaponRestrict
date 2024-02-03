@@ -4,6 +4,7 @@ using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Config;
 using CounterStrikeSharp.API.Modules.Memory.DynamicFunctions;
 using CounterStrikeSharp.API.Modules.Admin;
+using CounterStrikeSharp.API.Modules.Utils;
 
 namespace WeaponRestrict
 {
@@ -59,7 +60,7 @@ namespace WeaponRestrict
     {
         public override string ModuleName => "WeaponRestrict";
 
-        public override string ModuleVersion => "2.1.0";
+        public override string ModuleVersion => "2.1.1";
 
         public override string ModuleAuthor => "jon, sapphyrus & FireBird";
 
@@ -97,16 +98,16 @@ namespace WeaponRestrict
             foreach (CCSPlayerController player in players)
             {
                 // Skip invalid players and bots, extended null checks
-                if (player is null || !player.IsValid || player.IsBot || player.PlayerPawn is null || !player.PlayerPawn.IsValid || player.PlayerPawn.Value is null || player.PlayerPawn.Value.WeaponServices is null) continue;
-                
+                if (!player.IsValid || player.PlayerPawn.Value is null || player.PlayerPawn.Value.WeaponServices is null) continue;
+
                 // Skip counting VIP players
                 if (Config.VIPFlag != "" && AdminManager.PlayerHasPermissions(player, Config.VIPFlag)) continue;
 
                 // Get all weapons
-                foreach (var weapon in player.PlayerPawn.Value.WeaponServices.MyWeapons)
+                foreach (CHandle<CBasePlayerWeapon> weapon in player.PlayerPawn.Value.WeaponServices.MyWeapons)
                 {
-                    //Get the item definition and compare it to the count
-                    if (weapon.Value!.DesignerName != name) continue;
+                    //Get the item DesignerName and compare it to the counted name
+                    if (weapon.Value is null || weapon.Value.DesignerName != name) continue;
                     // Increment count if weapon is found
                     count++;
                 }
