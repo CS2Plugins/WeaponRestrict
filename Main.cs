@@ -5,6 +5,7 @@ using CounterStrikeSharp.API.Modules.Config;
 using CounterStrikeSharp.API.Modules.Memory.DynamicFunctions;
 using CounterStrikeSharp.API.Modules.Admin;
 using CounterStrikeSharp.API.Modules.Utils;
+using System.Data;
 
 namespace WeaponRestrict
 {
@@ -92,19 +93,17 @@ namespace WeaponRestrict
             Config = newConfig;
         }
 
-        private int CountWeaponsOnTeam(string name, IEnumerable<CCSPlayerController> players)
+        private int CountWeaponsOnTeam(string name, List<CCSPlayerController> players)
         {
             int count = 0;
+
             foreach (CCSPlayerController player in players)
             {
-                // Skip invalid players and bots, extended null checks
-                if (!player.IsValid || player.PlayerPawn.Value is null || player.PlayerPawn.Value.WeaponServices is null) continue;
-
                 // Skip counting VIP players
                 if (Config.VIPFlag != "" && AdminManager.PlayerHasPermissions(player, Config.VIPFlag)) continue;
 
-                // Get all weapons
-                foreach (CHandle<CBasePlayerWeapon> weapon in player.PlayerPawn.Value.WeaponServices.MyWeapons)
+                // Get all weapons (ignore null dereference because we already null checked these)
+                foreach (CHandle<CBasePlayerWeapon> weapon in player.PlayerPawn.Value!.WeaponServices!.MyWeapons)
                 {
                     //Get the item DesignerName and compare it to the counted name
                     if (weapon.Value is null || weapon.Value.DesignerName != name) continue;
@@ -133,13 +132,24 @@ namespace WeaponRestrict
             if (Config.VIPFlag != "" && AdminManager.PlayerHasPermissions(client, Config.VIPFlag))
                 return HookResult.Continue;
 
-            var players = Utilities.GetPlayers().Where(player => !Config.DoTeamCheck || player.Team == client.Team);
+            // Get every valid player, that is currently connected, and is alive, also check for teamcheck (and LOTS of null checks... because Valve)
+            List<CCSPlayerController> players = Utilities.GetPlayers().Where(player => 
+                player.IsValid 
+                && player.Connected == PlayerConnectedState.PlayerConnected 
+                && player.PlayerPawn != null
+                && player.PawnIsAlive
+                && player.PlayerPawn.Value != null 
+                && player.PlayerPawn.Value.IsValid
+                && player.PlayerPawn.Value.WeaponServices != null 
+                && player.PlayerPawn.Value.WeaponServices.MyWeapons != null
+                && (!Config.DoTeamCheck || player.Team == client.Team)
+                ).ToList();
 
             int limit = int.MaxValue;
             bool disabled = false;
             if (Config.WeaponQuotas.ContainsKey(vdata.Name))
             {
-                limit = Math.Min(limit, Config.WeaponQuotas[vdata.Name] > 0f ? (int)(players.Count() * Config.WeaponQuotas[vdata.Name]) : 0);
+                limit = Math.Min(limit, Config.WeaponQuotas[vdata.Name] > 0f ? (int)(players.Count * Config.WeaponQuotas[vdata.Name]) : 0);
                 disabled |= Config.WeaponQuotas[vdata.Name] == 0f;
             }
             if (Config.WeaponLimits.ContainsKey(vdata.Name))
