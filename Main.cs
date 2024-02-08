@@ -214,7 +214,9 @@ namespace WeaponRestrict
             if (currentMapConfig.ContainsKey("WeaponQuotas"))
             {
                 WeaponQuotas = currentMapConfig["WeaponQuotas"];
-            } else {
+            }
+            else
+            {
                 WeaponQuotas.Clear();
             }
 
@@ -222,7 +224,9 @@ namespace WeaponRestrict
             {
                 // Convert float dict to int dict (stored as float values for simplicity)
                 WeaponLimits = currentMapConfig["WeaponLimits"].ToDictionary(k => k.Key, v => (int)v.Value);
-            } else {
+            }
+            else
+            {
                 WeaponLimits.Clear();
             }
 
