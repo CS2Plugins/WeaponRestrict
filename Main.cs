@@ -56,6 +56,8 @@ namespace WeaponRestrict
 
         [JsonPropertyName("DoTeamCheck")] public bool DoTeamCheck { get; set; } = true;
 
+        [JsonPropertyName("AllowPickup")] public bool AllowPickup { get; set; } = false;
+
         [JsonPropertyName("VIPFlag")] public string VIPFlag { get; set; } = "@css/vip";
 
         [JsonPropertyName("MapConfigs")]
@@ -266,7 +268,9 @@ namespace WeaponRestrict
 
         private HookResult OnWeaponCanAcquire(DynamicHook hook)
         {
-            //Console.WriteLine("OnWeaponCanAcquire");
+            if (Config.AllowPickup && hook.GetParam<AcquireMethod>(2) == AcquireMethod.PickUp) 
+                return HookResult.Continue;
+
             var vdata = GetCSWeaponDataFromKeyFunc.Invoke(-1, hook.GetParam<CEconItemView>(1).ItemDefinitionIndex.ToString());
 
             // Weapon is not restricted
