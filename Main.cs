@@ -99,6 +99,8 @@ namespace WeaponRestrict
         public Dictionary<string, float> WeaponQuotas = new();
         public Dictionary<string, int> WeaponLimits = new();
 
+        public CCSGameRules? gameRules;
+
         public override void Load(bool hotReload)
         {
             GetCSWeaponDataFromKeyFunc = new(GameData.GetSignature("GetCSWeaponDataFromKey"));
@@ -107,13 +109,31 @@ namespace WeaponRestrict
 
             RegisterListener<Listeners.OnMapStart>((mapName) =>
             {
+                Server.NextWorldUpdate(() => {
+                    gameRules = GetGameRules();
+                });
+                
                 LoadMapConfig();
             });
+
+            if (hotReload) {
+                gameRules = GetGameRules();
+            }
         }
 
         public override void Unload(bool hotReload)
         {
             CCSPlayer_CanAcquireFunc.Unhook(OnWeaponCanAcquire, HookMode.Pre);
+        }
+
+        private static CCSGameRules GetGameRules() 
+        {
+            foreach (CBaseEntity entity in Utilities.FindAllEntitiesByDesignerName<CBaseEntity>("cs_gamerules")) 
+            {
+                return new CCSGameRules(entity.Handle);
+            }
+
+            throw new Exception("No CCSGameRules found!");
         }
 
         [ConsoleCommand("css_restrictweapon", "Restricts or unrestricts the specified weapon until mapchange or plugin reload")]
@@ -187,7 +207,7 @@ namespace WeaponRestrict
             }
         }
 
-        public void LoadMapConfig()
+        private void LoadMapConfig()
         {
             // Load map config if exists
             if (Server.MapName == null) return; // Null check on server boot
@@ -271,9 +291,9 @@ namespace WeaponRestrict
             return count;
         }
 
-        private HookResult OnWeaponCanAcquire(DynamicHook hook)
+        public HookResult OnWeaponCanAcquire(DynamicHook hook)
         {
-            if (Config.AllowPickup && hook.GetParam<AcquireMethod>(2) == AcquireMethod.PickUp) 
+            if (Config.AllowPickup && gameRules != null && gameRules.BuyTimeEnded && hook.GetParam<AcquireMethod>(2) == AcquireMethod.PickUp) 
                 return HookResult.Continue;
 
             var vdata = GetCSWeaponDataFromKeyFunc.Invoke(-1, hook.GetParam<CEconItemView>(1).ItemDefinitionIndex.ToString());

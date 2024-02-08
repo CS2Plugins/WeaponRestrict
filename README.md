@@ -26,12 +26,14 @@ To completely disable a weapon, set the `WeaponQuotas` or `WeaponLimits` for the
 
 You can use one, both, or none of `WeaponQuotas` and `WeaponLimits`.
 
+`AllowPickup` will allow anyone to pick up the restricted weapons after buytime is over, but not allow the purchase if the limit is met on their team. Do note that this is easily bypassable by holders dropping the weapons until other players purchase and picking up when buytime is over.
+
 You can use the `VIPFlag` to enable VIP bypass for a permission group, or use an empty string ("") to disable the check.
 
 The example config will allow 20% of the players on either team to have an AWP, with a hard limit of 1 per team. Meaning if you have at least 5 players on a team, they get one AWP. 
 VIPs are completely ignored and can always buy, drop and pick up the AWP.
 
-`MapConfigs` is a dictionary of maps which contains the same structure of `WeaponQuotas` and `WeaponLimits`. Both are optional.
+`MapConfigs` is an **optional** dictionary of maps which contains the same structure of `WeaponQuotas` and `WeaponLimits`. Both are optional.
 If you specify a map name and do not specify any quotas or limits, the map will load unrestricted. See `awp.*` in the example config.
 You can use a [regular expression](https://regex101.com/) for the map name. Do note that the pattern is already wrapped in `^` and `$` for simplicity.
 
