@@ -239,6 +239,11 @@ namespace WeaponRestrict
         {
             newConfig = ConfigManager.Load<WeaponRestrictConfig>("WeaponRestrict");
 
+            // Create empty variables for non-nullable types
+            newConfig.MapConfigs    ??= new();
+            newConfig.WeaponLimits  ??= new();
+            newConfig.WeaponQuotas  ??= new();
+
             Config = newConfig;
 
             LoadMapConfig();
