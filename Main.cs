@@ -230,9 +230,18 @@ namespace WeaponRestrict
                 }
                 else
                 {
-                    // Load the default config (create new to hopefully never pass by reference even though that should never happen anyways)
-                    WeaponLimits = new Dictionary<string, int>(Config.WeaponLimits);
-                    WeaponQuotas = new Dictionary<string, float>(Config.WeaponQuotas);
+                    // Load the default config
+                    if (Config.WeaponLimits != null) {
+                        WeaponLimits = Config.WeaponLimits;
+                    } else {
+                        WeaponLimits.Clear();
+                    }
+
+                    if (Config.WeaponQuotas != null) {
+                        WeaponQuotas = Config.WeaponQuotas;
+                    } else {
+                        WeaponLimits.Clear();
+                    }
 
                     Logger.LogInformation($"WeaponRestrict: Loaded default config for {Server.MapName} (Limits: {string.Join(Environment.NewLine, WeaponLimits)}, Quotas: {string.Join(Environment.NewLine, WeaponQuotas)})");
                     return;
