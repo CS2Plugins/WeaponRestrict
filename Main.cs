@@ -10,6 +10,7 @@ using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Commands;
 using System.Text.RegularExpressions;
 using CounterStrikeSharp.API.Core.Attributes;
+using Microsoft.Extensions.Logging;
 
 namespace WeaponRestrict
 {
@@ -84,7 +85,7 @@ namespace WeaponRestrict
     {
         public override string ModuleName => "WeaponRestrict";
 
-        public override string ModuleVersion => "2.2.0";
+        public override string ModuleVersion => "2.2.1";
 
         public override string ModuleAuthor => "jon, sapphyrus & FireBird";
 
@@ -109,14 +110,16 @@ namespace WeaponRestrict
 
             RegisterListener<Listeners.OnMapStart>((mapName) =>
             {
-                Server.NextWorldUpdate(() => {
+                Server.NextWorldUpdate(() =>
+                {
                     gameRules = GetGameRules();
                 });
-                
+
                 LoadMapConfig();
             });
 
-            if (hotReload) {
+            if (hotReload)
+            {
                 gameRules = GetGameRules();
             }
         }
@@ -126,9 +129,9 @@ namespace WeaponRestrict
             CCSPlayer_CanAcquireFunc.Unhook(OnWeaponCanAcquire, HookMode.Pre);
         }
 
-        private static CCSGameRules GetGameRules() 
+        private static CCSGameRules GetGameRules()
         {
-            foreach (CBaseEntity entity in Utilities.FindAllEntitiesByDesignerName<CBaseEntity>("cs_gamerules")) 
+            foreach (CBaseEntity entity in Utilities.FindAllEntitiesByDesignerName<CBaseEntity>("cs_gamerules"))
             {
                 return new CCSGameRules(entity.Handle);
             }
@@ -214,21 +217,24 @@ namespace WeaponRestrict
 
             Dictionary<string, Dictionary<string, float>> currentMapConfig;
 
+            // First check if there is any direct value for the map name in MapConfigs
             if (!Config.MapConfigs.TryGetValue(Server.MapName, out currentMapConfig!))
             {
+                // If the first check failed, check with regex on every MapConfigs key
                 KeyValuePair<string, Dictionary<string, Dictionary<string, float>>> wildcardConfig = Config.MapConfigs.FirstOrDefault(p => Regex.IsMatch(Server.MapName, $"^{p.Key}$"));
 
+                // If there is a match, and the properties are not null, set the currentMapConfig variable to the regex match value.
                 if (wildcardConfig.Value != null && wildcardConfig.Value.Count >= 0)
                 {
                     currentMapConfig = wildcardConfig.Value;
                 }
                 else
                 {
-                    // Load default config
-                    WeaponLimits = Config.WeaponLimits;
-                    WeaponQuotas = Config.WeaponQuotas;
+                    // Load the default config (create new to hopefully never pass by reference even though that should never happen anyways)
+                    WeaponLimits = new Dictionary<string, int>(Config.WeaponLimits);
+                    WeaponQuotas = new Dictionary<string, float>(Config.WeaponQuotas);
 
-                    Console.WriteLine($"WeaponRestrict: Loaded default config for {Server.MapName} (Limits: {string.Join(Environment.NewLine, WeaponLimits)}, Quotas: {string.Join(Environment.NewLine, WeaponQuotas)})");
+                    Logger.LogInformation($"WeaponRestrict: Loaded default config for {Server.MapName} (Limits: {string.Join(Environment.NewLine, WeaponLimits)}, Quotas: {string.Join(Environment.NewLine, WeaponQuotas)})");
                     return;
                 }
             };
@@ -252,7 +258,7 @@ namespace WeaponRestrict
                 WeaponLimits.Clear();
             }
 
-            Console.WriteLine($"WeaponRestrict: Loaded map config for {Server.MapName} (Limits: {string.Join(Environment.NewLine, WeaponLimits)}, Quotas: {string.Join(Environment.NewLine, WeaponQuotas)})");
+            Logger.LogInformation($"WeaponRestrict: Loaded map config for {Server.MapName} (Limits: {string.Join(Environment.NewLine, WeaponLimits)}, Quotas: {string.Join(Environment.NewLine, WeaponQuotas)})");
         }
 
         public void OnConfigParsed(WeaponRestrictConfig newConfig)
@@ -275,14 +281,21 @@ namespace WeaponRestrict
 
             foreach (CCSPlayerController player in players)
             {
-                // Skip counting VIP players
-                if (Config.VIPFlag != "" && AdminManager.PlayerHasPermissions(player, Config.VIPFlag)) continue;
+                // VIP, null and alive check
+                if ((Config.VIPFlag != "" && AdminManager.PlayerHasPermissions(player, Config.VIPFlag))
+                    || player.PlayerPawn == null
+                    || !player.PawnIsAlive
+                    || player.PlayerPawn.Value == null
+                    || !player.PlayerPawn.Value.IsValid
+                    || player.PlayerPawn.Value.WeaponServices == null
+                    || player.PlayerPawn.Value.WeaponServices.MyWeapons == null)
+                continue;
 
                 // Get all weapons (ignore null dereference because we already null checked these)
-                foreach (CHandle<CBasePlayerWeapon> weapon in player.PlayerPawn.Value!.WeaponServices!.MyWeapons)
+                foreach (CHandle<CBasePlayerWeapon> weapon in player.PlayerPawn.Value.WeaponServices.MyWeapons)
                 {
                     //Get the item DesignerName and compare it to the counted name
-                    if (weapon.Value is null || weapon.Value.DesignerName != name) continue;
+                    if (weapon.Value == null || weapon.Value.DesignerName != name) continue;
                     // Increment count if weapon is found
                     count++;
                 }
@@ -293,7 +306,7 @@ namespace WeaponRestrict
 
         public HookResult OnWeaponCanAcquire(DynamicHook hook)
         {
-            if (Config.AllowPickup && gameRules != null && gameRules.BuyTimeEnded && hook.GetParam<AcquireMethod>(2) == AcquireMethod.PickUp) 
+            if (Config.AllowPickup && gameRules != null && gameRules.BuyTimeEnded && hook.GetParam<AcquireMethod>(2) == AcquireMethod.PickUp)
                 return HookResult.Continue;
 
             var vdata = GetCSWeaponDataFromKeyFunc.Invoke(-1, hook.GetParam<CEconItemView>(1).ItemDefinitionIndex.ToString());
@@ -304,23 +317,17 @@ namespace WeaponRestrict
 
             var client = hook.GetParam<CCSPlayer_ItemServices>(0).Pawn.Value!.Controller.Value!.As<CCSPlayerController>();
 
-            if (client is null || !client.IsValid || !client.PawnIsAlive)
+            if (client == null || !client.IsValid || !client.PawnIsAlive)
                 return HookResult.Continue;
 
             // Player is VIP proof
             if (Config.VIPFlag != "" && AdminManager.PlayerHasPermissions(client, Config.VIPFlag))
                 return HookResult.Continue;
 
-            // Get every valid player, that is currently connected, and is alive, also check for teamcheck (and LOTS of null checks... because Valve)
+            // Get every valid player that is currently connected
             List<CCSPlayerController> players = Utilities.GetPlayers().Where(player =>
                 player.IsValid
                 && player.Connected == PlayerConnectedState.PlayerConnected
-                && player.PlayerPawn != null
-                && player.PawnIsAlive
-                && player.PlayerPawn.Value != null
-                && player.PlayerPawn.Value.IsValid
-                && player.PlayerPawn.Value.WeaponServices != null
-                && player.PlayerPawn.Value.WeaponServices.MyWeapons != null
                 && (!Config.DoTeamCheck || player.Team == client.Team)
                 ).ToList();
 
