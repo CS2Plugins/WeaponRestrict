@@ -16,7 +16,9 @@ For `RestrictMessage` use `{0}` for the weapon name and `{1}` for the limit.
 
 For `DisabledMessage` use `{0}` for the weapon name. 
 
-You have to use the escaped character codes for colors to get colored messages. See the example config for an example and [this list](https://github.com/roflmuffin/CounterStrikeSharp/blob/e1f9b5635eb21a7e2e31b1783b1b676719f88593/managed/CounterStrikeSharp.API/Modules/Utils/ChatColors.cs#L19) for character codes.
+When formatting the messages with colors, use the escaped character code or `{Color.*}` where `*` is the exact name of the field from [this class](https://github.com/roflmuffin/CounterStrikeSharp/blob/e1f9b5635eb21a7e2e31b1783b1b676719f88593/managed/CounterStrikeSharp.API/Modules/Utils/ChatColors.cs#L19). 
+
+For example, to use the light purple color use `{Color.LightPurple}` and NOT `{Color.lightPurple}` or any other case variant.
 
 To completely disable a weapon, set the `WeaponQuotas` or `WeaponLimits` for the desired weapon to 0.
 
