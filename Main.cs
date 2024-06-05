@@ -184,12 +184,14 @@ namespace WeaponRestrict
                         WeaponQuotas[weapon] = limit;
 
                         commandInfo.ReplyToCommand($"WeaponRestrict: Restricted \"{weapon}\" to \"{limit}\" per player(s) on team");
-                        return;
                     }
+                    else
+                    {
+                        WeaponQuotas.Remove(weapon);
 
-                    WeaponQuotas.Remove(weapon);
-
-                    commandInfo.ReplyToCommand($"WeaponRestrict: Removed quota for \"{weapon}\"");
+                        commandInfo.ReplyToCommand($"WeaponRestrict: Removed quota for \"{weapon}\"");
+                    }
+                    
                     break;
                 case "limit":
                     if (limit >= 0)
@@ -199,10 +201,13 @@ namespace WeaponRestrict
 
                         commandInfo.ReplyToCommand($"WeaponRestrict: Restricted \"{weapon}\" to \"{roundedLimit}\" per team");
                     }
+                    else
+                    {
+                        WeaponLimits.Remove(weapon);
 
-                    WeaponLimits.Remove(weapon);
+                        commandInfo.ReplyToCommand($"WeaponRestrict: Removed limit for \"{weapon}\"");
+                    }
 
-                    commandInfo.ReplyToCommand($"WeaponRestrict: Removed limit for \"{weapon}\"");
                     break;
                 case "default":
                     LoadMapConfig();
