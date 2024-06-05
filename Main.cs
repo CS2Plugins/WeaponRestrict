@@ -1,16 +1,21 @@
-﻿using System.Text.Json.Serialization;
-using CounterStrikeSharp.API;
+﻿using CounterStrikeSharp.API;
+
 using CounterStrikeSharp.API.Core;
+using CounterStrikeSharp.API.Core.Attributes.Registration;
+using CounterStrikeSharp.API.Core.Attributes;
+
 using CounterStrikeSharp.API.Modules.Config;
 using CounterStrikeSharp.API.Modules.Memory.DynamicFunctions;
 using CounterStrikeSharp.API.Modules.Admin;
 using CounterStrikeSharp.API.Modules.Utils;
-using System.Data;
-using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Commands;
-using System.Text.RegularExpressions;
-using CounterStrikeSharp.API.Core.Attributes;
+
 using Microsoft.Extensions.Logging;
+
+using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
+using System.Data;
+using System.Reflection;
 
 namespace WeaponRestrict
 {
@@ -39,9 +44,9 @@ namespace WeaponRestrict
 
     public class WeaponRestrictConfig : BasePluginConfig
     {
-        [JsonPropertyName("MessagePrefix")] public string MessagePrefix { get; set; } = "\u1010\u0010[WeaponRestrict] ";
-        [JsonPropertyName("RestrictMessage")] public string RestrictMessage { get; set; } = "\u0003{0}\u0001 is currently restricted to \u000F{1}\u0001 per team.";
-        [JsonPropertyName("DisabledMessage")] public string DisabledMessage { get; set; } = "\u0003{0}\u0001 is currently \u000Fdisabled\u0001.";
+        [JsonPropertyName("MessagePrefix")] public string MessagePrefix { get; set; } = "{Colors.Orange}[WeaponRestrict] ";
+        [JsonPropertyName("RestrictMessage")] public string RestrictMessage { get; set; } = "{Colors.LightPurple}{0}{Colors.Default} is currently restricted to {Colors.LightRed}{1}{Colors.Default} per team.";
+        [JsonPropertyName("DisabledMessage")] public string DisabledMessage { get; set; } = "{Colors.LightPurple}{0}{Colors.Default} is currently {Colors.LightRed}disabled{Colors.Default}.";
 
         [JsonPropertyName("WeaponQuotas")]
         public Dictionary<string, float> WeaponQuotas { get; set; } = new Dictionary<string, float>()
@@ -85,7 +90,7 @@ namespace WeaponRestrict
     {
         public override string ModuleName => "WeaponRestrict";
 
-        public override string ModuleVersion => "2.2.1";
+        public override string ModuleVersion => "2.3.0";
 
         public override string ModuleAuthor => "jon, sapphyrus & FireBird";
 
@@ -113,14 +118,17 @@ namespace WeaponRestrict
                 Server.NextWorldUpdate(() =>
                 {
                     gameRules = GetGameRules();
+                    LoadMapConfig();
                 });
-
-                LoadMapConfig();
             });
 
             if (hotReload)
             {
-                gameRules = GetGameRules();
+                Server.NextWorldUpdate(() =>
+                {
+                    gameRules = GetGameRules();
+                    LoadMapConfig();
+                });
             }
         }
 
@@ -151,62 +159,59 @@ namespace WeaponRestrict
             if (weapon == "")
             {
                 commandInfo.ReplyToCommand("WeaponRestrict: Please specify a weapon name");
+                return;
             }
-            else if (commandType == "none")
+            
+            if (commandType == "none")
             {
                 WeaponQuotas.Remove(weapon);
                 WeaponLimits.Remove(weapon);
 
                 commandInfo.ReplyToCommand($"WeaponRestrict: \"{weapon}\" is now unrestricted.");
+                return;
             }
-            else
+            
+            if (!float.TryParse(commandInfo.GetArg(3), out float limit))
             {
-                // Unrestrict based on method
-                if (float.TryParse(commandInfo.GetArg(3), out float limit))
-                {
-                    if (commandType == "quota")
+                limit = -1f;
+            }
+
+            switch (commandType)
+            {
+                case "quota":
+                    if (limit >= 0)
                     {
                         WeaponQuotas[weapon] = limit;
 
                         commandInfo.ReplyToCommand($"WeaponRestrict: Restricted \"{weapon}\" to \"{limit}\" per player(s) on team");
+                        return;
                     }
-                    else if (commandType == "limit")
+
+                    WeaponQuotas.Remove(weapon);
+
+                    commandInfo.ReplyToCommand($"WeaponRestrict: Removed quota for \"{weapon}\"");
+                    break;
+                case "limit":
+                    if (limit >= 0)
                     {
                         int roundedLimit = (int)Math.Round(limit);
                         WeaponLimits[weapon] = roundedLimit;
 
                         commandInfo.ReplyToCommand($"WeaponRestrict: Restricted \"{weapon}\" to \"{roundedLimit}\" per team");
                     }
-                    else
-                    {
-                        commandInfo.ReplyToCommand("WeaponRestrict: Unknown restrict method specified. Please use \"quota\" or \"limit\" with a number");
-                    }
-                }
-                else
-                {
-                    if (commandType == "quota")
-                    {
-                        WeaponQuotas.Remove(weapon);
 
-                        commandInfo.ReplyToCommand($"WeaponRestrict: Removed quota for \"{weapon}\"");
-                    }
-                    else if (commandType == "limit")
-                    {
-                        WeaponLimits.Remove(weapon);
+                    WeaponLimits.Remove(weapon);
 
-                        commandInfo.ReplyToCommand($"WeaponRestrict: Removed limit for \"{weapon}\"");
-                    }
-                    else if (commandType == "default")
-                    {
-                        LoadMapConfig();
+                    commandInfo.ReplyToCommand($"WeaponRestrict: Removed limit for \"{weapon}\"");
+                    break;
+                case "default":
+                    LoadMapConfig();
 
-                        commandInfo.ReplyToCommand($"WeaponRestrict: Reset to default for \"{weapon}\"");
-                    }
-                    else
-                    {
-                        commandInfo.ReplyToCommand("WeaponRestrict: Unknown restrict method specified. Please use \"quota\", \"limit\", \"default\", or \"none\"");
-                    }
-                }
+                    commandInfo.ReplyToCommand($"WeaponRestrict: Reset to default for \"{weapon}\"");
+                    break;
+                default:
+                    commandInfo.ReplyToCommand("WeaponRestrict: Unknown restrict method specified. Please use \"quota\", \"limit\", \"default\", or \"none\"");
+                    break;
             }
         }
 
@@ -270,21 +275,47 @@ namespace WeaponRestrict
             Logger.LogInformation($"WeaponRestrict: Loaded map config for {Server.MapName} (Limits: {string.Join(Environment.NewLine, WeaponLimits)}, Quotas: {string.Join(Environment.NewLine, WeaponQuotas)})");
         }
 
+        public static string FormatChatColors(string s)
+        {
+            const string FieldPrefix = "Color.";
+
+            if (string.IsNullOrEmpty(s))
+            {
+                return s;
+            }
+
+            foreach (FieldInfo field in typeof(ChatColors).GetFields().Where(f => (f.FieldType == typeof(char) || f.FieldType == typeof(string)) && f.IsStatic && !string.IsNullOrEmpty(f.Name)))
+            {
+                s = s.Replace($"{{{FieldPrefix}{field.Name}}}", field.GetValue(null)!.ToString());
+            }
+            return s;
+        }
+
         public void OnConfigParsed(WeaponRestrictConfig newConfig)
         {
             newConfig = ConfigManager.Load<WeaponRestrictConfig>("WeaponRestrict");
 
             // Create empty variables for non-nullable types
-            newConfig.MapConfigs    ??= new();
             newConfig.WeaponLimits  ??= new();
             newConfig.WeaponQuotas  ??= new();
+
+            if (newConfig.MapConfigs == null)
+            {
+                newConfig.MapConfigs = new Dictionary<string, Dictionary<string, Dictionary<string, float>>>();
+                newConfig.MapConfigs.Clear();
+            }
+
+            // Format chat colors
+            newConfig.MessagePrefix     = "\u1010" + FormatChatColors(newConfig.MessagePrefix);
+            newConfig.DisabledMessage   = FormatChatColors(newConfig.DisabledMessage);
+            newConfig.RestrictMessage   = FormatChatColors(newConfig.RestrictMessage);
 
             Config = newConfig;
 
             LoadMapConfig();
         }
 
-        private int CountWeaponsOnTeam(string name, List<CCSPlayerController> players)
+        private int CountWeaponsOnTeam(string designerName, IEnumerable<CCSPlayerController> players)
         {
             int count = 0;
 
@@ -300,11 +331,11 @@ namespace WeaponRestrict
                     || player.PlayerPawn.Value.WeaponServices.MyWeapons == null)
                 continue;
 
-                // Get all weapons (ignore null dereference because we already null checked these)
+                // Iterate over player weapons
                 foreach (CHandle<CBasePlayerWeapon> weapon in player.PlayerPawn.Value.WeaponServices.MyWeapons)
                 {
                     //Get the item DesignerName and compare it to the counted name
-                    if (weapon.Value == null || weapon.Value.DesignerName != name) continue;
+                    if (weapon.Value == null || weapon.Value.DesignerName != designerName) continue;
                     // Increment count if weapon is found
                     count++;
                 }
@@ -318,13 +349,13 @@ namespace WeaponRestrict
             if (Config.AllowPickup && gameRules != null && gameRules.BuyTimeEnded && hook.GetParam<AcquireMethod>(2) == AcquireMethod.PickUp)
                 return HookResult.Continue;
 
-            var vdata = GetCSWeaponDataFromKeyFunc.Invoke(-1, hook.GetParam<CEconItemView>(1).ItemDefinitionIndex.ToString());
+            CCSWeaponBaseVData vdata = GetCSWeaponDataFromKeyFunc.Invoke(-1, hook.GetParam<CEconItemView>(1).ItemDefinitionIndex.ToString()) ?? throw new Exception("Failed to get CCSWeaponBaseVData");
 
             // Weapon is not restricted
             if (!WeaponQuotas.ContainsKey(vdata.Name) && !WeaponLimits.ContainsKey(vdata.Name))
                 return HookResult.Continue;
 
-            var client = hook.GetParam<CCSPlayer_ItemServices>(0).Pawn.Value!.Controller.Value!.As<CCSPlayerController>();
+            CCSPlayerController client = hook.GetParam<CCSPlayer_ItemServices>(0).Pawn.Value!.Controller.Value!.As<CCSPlayerController>();
 
             if (client == null || !client.IsValid || !client.PawnIsAlive)
                 return HookResult.Continue;
@@ -334,30 +365,34 @@ namespace WeaponRestrict
                 return HookResult.Continue;
 
             // Get every valid player that is currently connected
-            List<CCSPlayerController> players = Utilities.GetPlayers().Where(player =>
-                player.IsValid
+            IEnumerable<CCSPlayerController> players = Utilities.GetPlayers().Where(player =>
+                player.IsValid // Unneccessary?
                 && player.Connected == PlayerConnectedState.PlayerConnected
                 && (!Config.DoTeamCheck || player.Team == client.Team)
-                ).ToList();
+                );
 
             int limit = int.MaxValue;
             bool disabled = false;
-            if (WeaponQuotas.ContainsKey(vdata.Name))
+            if (WeaponQuotas.TryGetValue(vdata.Name, out float cfgQuota))
             {
-                limit = Math.Min(limit, WeaponQuotas[vdata.Name] > 0f ? (int)(players.Count * WeaponQuotas[vdata.Name]) : 0);
-                disabled |= WeaponQuotas[vdata.Name] == 0f;
+                limit = Math.Min(limit, cfgQuota > 0f ? (int)(players.Count() * cfgQuota) : 0);
+                disabled |= cfgQuota == 0f;
             }
-            if (WeaponLimits.ContainsKey(vdata.Name))
+            
+            if (WeaponLimits.TryGetValue(vdata.Name, out int cfgLimit))
             {
-                limit = Math.Min(limit, WeaponLimits[vdata.Name]);
-                disabled |= WeaponLimits[vdata.Name] == 0;
+                limit = Math.Min(limit, cfgLimit);
+                disabled |= cfgLimit == 0;
             }
 
-            int count = CountWeaponsOnTeam(vdata.Name, players);
-            if (count < limit)
-                return HookResult.Continue;
+            if (!disabled)
+            {
+                int count = CountWeaponsOnTeam(vdata.Name, players);
+                if (count < limit)
+                    return HookResult.Continue;
+            }
 
-            // Print chat message if we attempted to buy this weapon
+            // Print chat message if we attempted to do anything except pick up this weapon. This is to prevent chat spam.
             if (hook.GetParam<AcquireMethod>(2) != AcquireMethod.PickUp)
             {
                 hook.SetReturn(AcquireResult.AlreadyOwned);
