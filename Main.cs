@@ -44,9 +44,9 @@ namespace WeaponRestrict
 
     public class WeaponRestrictConfig : BasePluginConfig
     {
-        [JsonPropertyName("MessagePrefix")] public string MessagePrefix { get; set; } = "{Colors.Orange}[WeaponRestrict] ";
-        [JsonPropertyName("RestrictMessage")] public string RestrictMessage { get; set; } = "{Colors.LightPurple}{0}{Colors.Default} is currently restricted to {Colors.LightRed}{1}{Colors.Default} per team.";
-        [JsonPropertyName("DisabledMessage")] public string DisabledMessage { get; set; } = "{Colors.LightPurple}{0}{Colors.Default} is currently {Colors.LightRed}disabled{Colors.Default}.";
+        [JsonPropertyName("MessagePrefix")] public string MessagePrefix { get; set; } = "{Color.Orange}[WeaponRestrict] ";
+        [JsonPropertyName("RestrictMessage")] public string RestrictMessage { get; set; } = "{Color.LightPurple}{0}{Color.Default} is currently restricted to {Color.LightRed}{1}{Color.Default} per team.";
+        [JsonPropertyName("DisabledMessage")] public string DisabledMessage { get; set; } = "{Color.LightPurple}{0}{Color.Default} is currently {Color.LightRed}disabled{Color.Default}.";
 
         [JsonPropertyName("WeaponQuotas")]
         public Dictionary<string, float> WeaponQuotas { get; set; } = new Dictionary<string, float>()
