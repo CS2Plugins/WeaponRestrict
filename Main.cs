@@ -67,6 +67,8 @@ namespace WeaponRestrict
 
         [JsonPropertyName("AllowPickup")] public bool AllowPickup { get; set; } = false;
 
+        [JsonPropertyName("RestrictWarmup")] public bool RestrictWarmup { get; set; } = true;
+
         [JsonPropertyName("VIPFlag")] public string VIPFlag { get; set; } = "@css/vip";
 
         [JsonPropertyName("MapConfigs")]
@@ -370,8 +372,14 @@ namespace WeaponRestrict
 
         public HookResult OnWeaponCanAcquire(DynamicHook hook)
         {
-            if (Config.AllowPickup && gameRules != null && gameRules.BuyTimeEnded && hook.GetParam<AcquireMethod>(2) == AcquireMethod.PickUp)
-                return HookResult.Continue;
+            if (gameRules != null)
+            {
+                if (Config.RestrictWarmup && gameRules.WarmupPeriod)
+                    return HookResult.Continue;
+            
+                if (Config.AllowPickup && gameRules.BuyTimeEnded && hook.GetParam<AcquireMethod>(2) == AcquireMethod.PickUp)
+                    return HookResult.Continue;
+            }
 
             CCSWeaponBaseVData vdata = GetCSWeaponDataFromKeyFunc.Invoke(-1, hook.GetParam<CEconItemView>(1).ItemDefinitionIndex.ToString()) ?? throw new Exception("Failed to get CCSWeaponBaseVData");
 
