@@ -44,18 +44,21 @@ namespace WeaponRestrict
 
     public class WeaponRestrictConfig : BasePluginConfig
     {
+        [JsonIgnore]
+        public const int CONFIG_VERSION = 3;
+
         [JsonPropertyName("MessagePrefix")] public string MessagePrefix { get; set; } = "{Color.Orange}[WeaponRestrict] ";
         [JsonPropertyName("RestrictMessage")] public string RestrictMessage { get; set; } = "{Color.LightPurple}{0}{Color.Default} is currently restricted to {Color.LightRed}{1}{Color.Default} per team.";
         [JsonPropertyName("DisabledMessage")] public string DisabledMessage { get; set; } = "{Color.LightPurple}{0}{Color.Default} is currently {Color.LightRed}disabled{Color.Default}.";
 
-        [JsonPropertyName("WeaponQuotas")]
-        public Dictionary<string, float> WeaponQuotas { get; set; } = new Dictionary<string, float>()
+        [JsonPropertyName("DefaultQuotas")]
+        public Dictionary<string, float> DefaultQuotas { get; set; } = new Dictionary<string, float>()
         {
             ["weapon_awp"] = 0.2f
         };
 
-        [JsonPropertyName("WeaponLimits")]
-        public Dictionary<string, int> WeaponLimits { get; set; } = new Dictionary<string, int>()
+        [JsonPropertyName("DefaultLimits")]
+        public Dictionary<string, int> DefaultLimits { get; set; } = new Dictionary<string, int>()
         {
             ["weapon_awp"] = 1
         };
@@ -82,15 +85,16 @@ namespace WeaponRestrict
                 ["awp.*"] = new Dictionary<string, float>()
             }
         };
-        [JsonPropertyName("ConfigVersion")] public new int Version { get; set; } = 2;
+        
+        [JsonPropertyName("ConfigVersion")] public new int Version { get; set; } = CONFIG_VERSION;
     }
 
-    [MinimumApiVersion(163)]
+    [MinimumApiVersion(239)]
     public class WeaponRestrictPlugin : BasePlugin, IPluginConfig<WeaponRestrictConfig>
     {
         public override string ModuleName => "WeaponRestrict";
 
-        public override string ModuleVersion => "2.3.0";
+        public override string ModuleVersion => "2.3.1";
 
         public override string ModuleAuthor => "jon, sapphyrus & FireBird";
 
@@ -179,7 +183,7 @@ namespace WeaponRestrict
             switch (commandType)
             {
                 case "quota":
-                    if (limit >= 0)
+                    if (limit >= 0f)
                     {
                         WeaponQuotas[weapon] = limit;
 
@@ -191,10 +195,10 @@ namespace WeaponRestrict
 
                         commandInfo.ReplyToCommand($"WeaponRestrict: Removed quota for \"{weapon}\"");
                     }
-                    
+
                     break;
                 case "limit":
-                    if (limit >= 0)
+                    if (limit >= 0f)
                     {
                         int roundedLimit = (int)Math.Round(limit);
                         WeaponLimits[weapon] = roundedLimit;
@@ -210,9 +214,10 @@ namespace WeaponRestrict
 
                     break;
                 case "default":
+                    // TODO: Grab the value from the config and do not reload the entire map config.
                     LoadMapConfig();
 
-                    commandInfo.ReplyToCommand($"WeaponRestrict: Reset to default for \"{weapon}\"");
+                    commandInfo.ReplyToCommand($"WeaponRestrict: Reset to default weapon restrictions.");
                     break;
                 default:
                     commandInfo.ReplyToCommand("WeaponRestrict: Unknown restrict method specified. Please use \"quota\", \"limit\", \"default\", or \"none\"");
@@ -225,59 +230,63 @@ namespace WeaponRestrict
             // Load map config if exists
             if (Server.MapName == null) return; // Null check on server boot
 
-            Dictionary<string, Dictionary<string, float>> currentMapConfig;
+            // Key: Restriction type, Value: Restriction values
+            Dictionary<string, Dictionary<string, float>>? currentMapConfig = null;
 
-            // First check if there is any direct value for the map name in MapConfigs
-            if (!Config.MapConfigs.TryGetValue(Server.MapName, out currentMapConfig!))
+            if (!Config.MapConfigs.TryGetValue(Server.MapName, out currentMapConfig))
             {
-                // If the first check failed, check with regex on every MapConfigs key
-                KeyValuePair<string, Dictionary<string, Dictionary<string, float>>> wildcardConfig = Config.MapConfigs.FirstOrDefault(p => Regex.IsMatch(Server.MapName, $"^{p.Key}$"));
+                currentMapConfig = null;
+                var cfgEnum = Config.MapConfigs.Where(x => Regex.IsMatch(Server.MapName, $"^{x.Key}$")).Select(x => x.Value);
 
-                // If there is a match, and the properties are not null, set the currentMapConfig variable to the regex match value.
-                if (wildcardConfig.Value != null && wildcardConfig.Value.Count >= 0)
+                if (cfgEnum.Any())
                 {
-                    currentMapConfig = wildcardConfig.Value;
+                    if (cfgEnum.Count() > 1)
+                    {
+                        Logger.LogInformation("WeaponRestrict: Ambiguous wildcard search for {Mapname} in configs.", Server.MapName);
+                    }
+
+                    // Load the found wildcard config
+                    currentMapConfig = cfgEnum.First();
+                }
+            }
+
+            if (currentMapConfig == null)
+            {
+                // Load the default config
+                WeaponQuotas.Clear();
+                WeaponLimits.Clear();
+
+                WeaponQuotas = Config.DefaultQuotas;
+                WeaponLimits = Config.DefaultLimits;
+            }
+            else
+            {
+                // Load the found config
+
+                if (currentMapConfig.TryGetValue("WeaponQuotas", out Dictionary<string, float>? newQuotas))
+                {
+                    WeaponQuotas = newQuotas;
                 }
                 else
                 {
-                    // Load the default config
-                    if (Config.WeaponLimits != null) {
-                        WeaponLimits = Config.WeaponLimits;
-                    } else {
-                        WeaponLimits.Clear();
-                    }
-
-                    if (Config.WeaponQuotas != null) {
-                        WeaponQuotas = Config.WeaponQuotas;
-                    } else {
-                        WeaponLimits.Clear();
-                    }
-
-                    Logger.LogInformation($"WeaponRestrict: Loaded default config for {Server.MapName} (Limits: {string.Join(Environment.NewLine, WeaponLimits)}, Quotas: {string.Join(Environment.NewLine, WeaponQuotas)})");
-                    return;
+                    WeaponQuotas.Clear();
                 }
-            };
 
-            if (currentMapConfig.ContainsKey("WeaponQuotas"))
-            {
-                WeaponQuotas = currentMapConfig["WeaponQuotas"];
-            }
-            else
-            {
-                WeaponQuotas.Clear();
-            }
-
-            if (currentMapConfig.ContainsKey("WeaponLimits"))
-            {
-                // Convert float dict to int dict (stored as float values for simplicity)
-                WeaponLimits = currentMapConfig["WeaponLimits"].ToDictionary(k => k.Key, v => (int)v.Value);
-            }
-            else
-            {
-                WeaponLimits.Clear();
+                if (currentMapConfig.TryGetValue("WeaponQuotas", out Dictionary<string, float>? newLimits))
+                {
+                    WeaponLimits = newLimits.ToDictionary(k => k.Key, v => (int)v.Value);
+                }
+                else
+                {
+                    WeaponLimits.Clear();
+                }
             }
 
-            Logger.LogInformation($"WeaponRestrict: Loaded map config for {Server.MapName} (Limits: {string.Join(Environment.NewLine, WeaponLimits)}, Quotas: {string.Join(Environment.NewLine, WeaponQuotas)})");
+            Logger.LogInformation("WeaponRestrict: Loaded {DefaultPrefix}config for {MapName} (Limits: {Limits}, Quotas: {Quotas})", 
+                        currentMapConfig == null ? "default " : "",
+                        Server.MapName, 
+                        string.Join(Environment.NewLine, WeaponLimits), 
+                        string.Join(Environment.NewLine, WeaponQuotas));
         }
 
         public static string FormatChatColors(string s)
@@ -296,26 +305,35 @@ namespace WeaponRestrict
             return s;
         }
 
-        public void OnConfigParsed(WeaponRestrictConfig newConfig)
+        public void OnConfigParsed(WeaponRestrictConfig loadedConfig)
         {
-            newConfig = ConfigManager.Load<WeaponRestrictConfig>("WeaponRestrict");
+            loadedConfig = ConfigManager.Load<WeaponRestrictConfig>("WeaponRestrict");
+
+            if (loadedConfig.Version < WeaponRestrictConfig.CONFIG_VERSION)
+            {
+                Logger.LogInformation("WeaponRestrict: Outdated config version. Please review the latest changes and update the config version to {NewCfgVersion}", WeaponRestrictConfig.CONFIG_VERSION);
+            }
+
+            // TODO: Somehow check for default values?
 
             // Create empty variables for non-nullable types
-            newConfig.WeaponLimits  ??= new();
-            newConfig.WeaponQuotas  ??= new();
+            /*
+            newConfig.DefaultLimits  ??= new();
+            newConfig.DefaultQuotas  ??= new();
 
             if (newConfig.MapConfigs == null)
             {
                 newConfig.MapConfigs = new Dictionary<string, Dictionary<string, Dictionary<string, float>>>();
                 newConfig.MapConfigs.Clear();
             }
+            */
 
             // Format chat colors
-            newConfig.MessagePrefix     = "\u1010" + FormatChatColors(newConfig.MessagePrefix);
-            newConfig.DisabledMessage   = FormatChatColors(newConfig.DisabledMessage);
-            newConfig.RestrictMessage   = FormatChatColors(newConfig.RestrictMessage);
+            loadedConfig.MessagePrefix     = "\u1010" + FormatChatColors(loadedConfig.MessagePrefix);
+            loadedConfig.DisabledMessage   = FormatChatColors(loadedConfig.DisabledMessage);
+            loadedConfig.RestrictMessage   = FormatChatColors(loadedConfig.RestrictMessage);
 
-            Config = newConfig;
+            Config = loadedConfig;
 
             LoadMapConfig();
         }
@@ -326,6 +344,7 @@ namespace WeaponRestrict
 
             foreach (CCSPlayerController player in players)
             {
+                // TODO: Null check can be simplified due to new API changes
                 // VIP, null and alive check
                 if ((Config.VIPFlag != "" && AdminManager.PlayerHasPermissions(player, Config.VIPFlag))
                     || player.PlayerPawn == null
@@ -404,9 +423,9 @@ namespace WeaponRestrict
 
                 string msg = "";
                 if (disabled && Config.DisabledMessage != "")
-                    msg = FormatChatMessage(Config.DisabledMessage, vdata.Name);
+                    msg = string.Format(Config.MessagePrefix + Config.DisabledMessage, vdata.Name);
                 else if (Config.RestrictMessage != "")
-                    msg = FormatChatMessage(Config.RestrictMessage, vdata.Name, limit.ToString());
+                    msg = string.Format(Config.MessagePrefix + Config.RestrictMessage, vdata.Name, limit.ToString());
 
                 if (msg != "")
                     Server.NextFrame(() => client.PrintToChat(msg));
@@ -417,11 +436,6 @@ namespace WeaponRestrict
             }
 
             return HookResult.Stop;
-        }
-
-        private string FormatChatMessage(string message, params string[] varArgs)
-        {
-            return string.Format(Config.MessagePrefix + message, varArgs);
         }
     }
 }
