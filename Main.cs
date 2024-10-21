@@ -47,6 +47,12 @@ namespace WeaponRestrict
         [JsonIgnore]
         public const int CONFIG_VERSION = 3;
 
+        [JsonIgnore]
+        public const string WEAPON_QUOTAS = "WeaponQuotas";
+        
+        [JsonIgnore]
+        public const string WEAPON_LIMITS = "WeaponLimits";
+
         [JsonPropertyName("MessagePrefix")] public string MessagePrefix { get; set; } = "{Color.Orange}[WeaponRestrict] ";
         [JsonPropertyName("RestrictMessage")] public string RestrictMessage { get; set; } = "{Color.LightPurple}{0}{Color.Default} is currently restricted to {Color.LightRed}{1}{Color.Default} per team.";
         [JsonPropertyName("DisabledMessage")] public string DisabledMessage { get; set; } = "{Color.LightPurple}{0}{Color.Default} is currently {Color.LightRed}disabled{Color.Default}.";
@@ -76,11 +82,11 @@ namespace WeaponRestrict
         {
             ["de_dust2"] = new Dictionary<string, Dictionary<string, float>>()
             {
-                ["WeaponQuotas"] = new Dictionary<string, float>()
+                [WEAPON_QUOTAS] = new Dictionary<string, float>()
                 {
                     ["weapon_awp"] = 0.2f
                 },
-                ["WeaponLimits"] = new Dictionary<string, float>()
+                [WEAPON_LIMITS] = new Dictionary<string, float>()
                 {
                     ["weapon_awp"] = 1
                 },
@@ -108,8 +114,10 @@ namespace WeaponRestrict
 
         public required MemoryFunctionWithReturn<int, string, CCSWeaponBaseVData> GetCSWeaponDataFromKeyFunc;
 
-        public Dictionary<string, float> WeaponQuotas = new();
-        public Dictionary<string, int> WeaponLimits = new();
+        public readonly Dictionary<string, float> WeaponQuotas = new();
+        public readonly Dictionary<string, int> WeaponLimits = new();
+
+        public bool InWarmup = false;
 
         public CCSGameRules? gameRules;
 
@@ -126,6 +134,20 @@ namespace WeaponRestrict
                     gameRules = GetGameRules();
                     LoadMapConfig();
                 });
+            });
+
+            RegisterEventHandler<EventRoundAnnounceWarmup>((@event, info) =>
+            {
+                InWarmup = true;
+
+                return HookResult.Continue;
+            });
+
+            RegisterEventHandler<EventRoundAnnounceMatchStart>((@event, info) =>
+            {
+                InWarmup = false;
+
+                return HookResult.Continue;
             });
 
             if (hotReload)
@@ -252,43 +274,47 @@ namespace WeaponRestrict
                 }
             }
 
+            WeaponQuotas.Clear();
+            WeaponLimits.Clear();
+
             if (currentMapConfig == null)
             {
                 // Load the default config
-                WeaponQuotas.Clear();
-                WeaponLimits.Clear();
+                foreach (var (key, value) in Config.DefaultQuotas)
+                {
+                    WeaponQuotas[key] = value;
+                }
 
-                WeaponQuotas = Config.DefaultQuotas;
-                WeaponLimits = Config.DefaultLimits;
+                foreach (var (key, value) in Config.DefaultLimits)
+                {
+                    WeaponLimits[key] = value;
+                }
             }
             else
             {
                 // Load the found config
-
-                if (currentMapConfig.TryGetValue("WeaponQuotas", out Dictionary<string, float>? newQuotas))
+                if (currentMapConfig.TryGetValue(WeaponRestrictConfig.WEAPON_QUOTAS, out Dictionary<string, float>? newQuotas))
                 {
-                    WeaponQuotas = newQuotas;
-                }
-                else
-                {
-                    WeaponQuotas.Clear();
+                    foreach (var (key, value) in newQuotas)
+                    {
+                        WeaponQuotas[key] = value;
+                    }
                 }
 
-                if (currentMapConfig.TryGetValue("WeaponQuotas", out Dictionary<string, float>? newLimits))
+                if (currentMapConfig.TryGetValue(WeaponRestrictConfig.WEAPON_LIMITS, out Dictionary<string, float>? newLimits))
                 {
-                    WeaponLimits = newLimits.ToDictionary(k => k.Key, v => (int)v.Value);
-                }
-                else
-                {
-                    WeaponLimits.Clear();
+                    foreach (var (key, value) in newLimits)
+                    {
+                        WeaponLimits[key] = (int)value;
+                    }
                 }
             }
 
             Logger.LogInformation("WeaponRestrict: Loaded {DefaultPrefix}config for {MapName} (Limits: {Limits}, Quotas: {Quotas})", 
                         currentMapConfig == null ? "default " : "",
                         Server.MapName, 
-                        string.Join(Environment.NewLine, WeaponLimits), 
-                        string.Join(Environment.NewLine, WeaponQuotas));
+                        string.Join(",", WeaponLimits), 
+                        string.Join(",", WeaponQuotas));
         }
 
         public static string FormatChatColors(string s)
@@ -317,18 +343,6 @@ namespace WeaponRestrict
             }
 
             // TODO: Somehow check for default values?
-
-            // Create empty variables for non-nullable types
-            /*
-            newConfig.DefaultLimits  ??= new();
-            newConfig.DefaultQuotas  ??= new();
-
-            if (newConfig.MapConfigs == null)
-            {
-                newConfig.MapConfigs = new Dictionary<string, Dictionary<string, Dictionary<string, float>>>();
-                newConfig.MapConfigs.Clear();
-            }
-            */
 
             // Format chat colors
             loadedConfig.MessagePrefix     = "\u1010" + FormatChatColors(loadedConfig.MessagePrefix);
@@ -372,11 +386,12 @@ namespace WeaponRestrict
 
         public HookResult OnWeaponCanAcquire(DynamicHook hook)
         {
+            // Warmup check
+            if (!Config.RestrictWarmup && InWarmup)
+                return HookResult.Continue;
+            
             if (gameRules != null)
             {
-                if (Config.RestrictWarmup && gameRules.WarmupPeriod)
-                    return HookResult.Continue;
-            
                 if (Config.AllowPickup && gameRules.BuyTimeEnded && hook.GetParam<AcquireMethod>(2) == AcquireMethod.PickUp)
                     return HookResult.Continue;
             }
@@ -391,6 +406,17 @@ namespace WeaponRestrict
 
             if (client == null || !client.IsValid || !client.PawnIsAlive)
                 return HookResult.Continue;
+
+            /*
+            Logger.LogInformation("WeaponRestrict: {Player} is trying to acquire {Weapon} ({Method}) on {Map} (WMUP: {Warmup}, BUYT: {BuyTime})",
+                client.PlayerName,
+                vdata.Name,
+                hook.GetParam<AcquireMethod>(2),
+                Server.MapName,
+                InWarmup,
+                gameRules.BuyTimeEnded
+            );
+            */
 
             // Player is VIP proof
             if (Config.VIPFlag != "" && AdminManager.PlayerHasPermissions(client, Config.VIPFlag))
