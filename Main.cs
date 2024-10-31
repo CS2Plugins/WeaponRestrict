@@ -9,6 +9,7 @@ using CounterStrikeSharp.API.Modules.Memory.DynamicFunctions;
 using CounterStrikeSharp.API.Modules.Admin;
 using CounterStrikeSharp.API.Modules.Utils;
 using CounterStrikeSharp.API.Modules.Commands;
+using CounterStrikeSharp.API.Modules.Memory;
 
 using Microsoft.Extensions.Logging;
 
@@ -19,29 +20,6 @@ using System.Reflection;
 
 namespace WeaponRestrict
 {
-    // Possible results for CSPlayer::CanAcquire
-    public enum AcquireResult : int
-    {
-        Allowed = 0,
-        InvalidItem,
-        AlreadyOwned,
-        AlreadyPurchased,
-        ReachedGrenadeTypeLimit,
-        ReachedGrenadeTotalLimit,
-        NotAllowedByTeam,
-        NotAllowedByMap,
-        NotAllowedByMode,
-        NotAllowedForPurchase,
-        NotAllowedByProhibition,
-    };
-
-    // Possible results for CSPlayer::CanAcquire
-    public enum AcquireMethod : int
-    {
-        PickUp = 0,
-        Buy,
-    };
-
     public class WeaponRestrictConfig : BasePluginConfig
     {
         [JsonIgnore]
@@ -97,7 +75,7 @@ namespace WeaponRestrict
         [JsonPropertyName("ConfigVersion")] public new int Version { get; set; } = CONFIG_VERSION;
     }
 
-    [MinimumApiVersion(239)]
+    [MinimumApiVersion(284)]
     public class WeaponRestrictPlugin : BasePlugin, IPluginConfig<WeaponRestrictConfig>
     {
         public override string ModuleName => "WeaponRestrict";
@@ -110,10 +88,6 @@ namespace WeaponRestrict
 
         public required WeaponRestrictConfig Config { get; set; }
 
-        public required MemoryFunctionWithReturn<CCSPlayer_ItemServices, CEconItemView, AcquireMethod, NativeObject, AcquireResult> CCSPlayer_CanAcquireFunc;
-
-        public required MemoryFunctionWithReturn<int, string, CCSWeaponBaseVData> GetCSWeaponDataFromKeyFunc;
-
         public readonly Dictionary<string, float> WeaponQuotas = new();
         public readonly Dictionary<string, int> WeaponLimits = new();
 
@@ -123,9 +97,7 @@ namespace WeaponRestrict
 
         public override void Load(bool hotReload)
         {
-            GetCSWeaponDataFromKeyFunc = new(GameData.GetSignature("GetCSWeaponDataFromKey"));
-            CCSPlayer_CanAcquireFunc = new(GameData.GetSignature("CCSPlayer_CanAcquire"));
-            CCSPlayer_CanAcquireFunc.Hook(OnWeaponCanAcquire, HookMode.Pre);
+            VirtualFunctions.CCSPlayer_ItemServices_CanAcquireFunc.Hook(OnWeaponCanAcquire, HookMode.Pre);
 
             RegisterListener<Listeners.OnMapStart>((mapName) =>
             {
@@ -162,7 +134,7 @@ namespace WeaponRestrict
 
         public override void Unload(bool hotReload)
         {
-            CCSPlayer_CanAcquireFunc.Unhook(OnWeaponCanAcquire, HookMode.Pre);
+            VirtualFunctions.CCSPlayer_ItemServices_CanAcquireFunc.Unhook(OnWeaponCanAcquire, HookMode.Pre);
         }
 
         private static CCSGameRules GetGameRules()
@@ -396,7 +368,7 @@ namespace WeaponRestrict
                     return HookResult.Continue;
             }
 
-            CCSWeaponBaseVData vdata = GetCSWeaponDataFromKeyFunc.Invoke(-1, hook.GetParam<CEconItemView>(1).ItemDefinitionIndex.ToString()) ?? throw new Exception("Failed to get CCSWeaponBaseVData");
+            CCSWeaponBaseVData vdata = VirtualFunctions.GetCSWeaponDataFromKeyFunc.Invoke(-1, hook.GetParam<CEconItemView>(1).ItemDefinitionIndex.ToString()) ?? throw new Exception("Failed to get CCSWeaponBaseVData");
 
             // Weapon is not restricted
             if (!WeaponQuotas.ContainsKey(vdata.Name) && !WeaponLimits.ContainsKey(vdata.Name))
