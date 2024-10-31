@@ -23,7 +23,7 @@ namespace WeaponRestrict
     public class WeaponRestrictConfig : BasePluginConfig
     {
         [JsonIgnore]
-        public const int CONFIG_VERSION = 3;
+        public const int CONFIG_VERSION = 4;
 
         [JsonIgnore]
         public const string WEAPON_QUOTAS = "WeaponQuotas";
@@ -80,7 +80,7 @@ namespace WeaponRestrict
     {
         public override string ModuleName => "WeaponRestrict";
 
-        public override string ModuleVersion => "2.3.1";
+        public override string ModuleVersion => "1.4.0";
 
         public override string ModuleAuthor => "jon, sapphyrus, FireBird & stefanx111";
 
@@ -238,7 +238,7 @@ namespace WeaponRestrict
                 {
                     if (cfgEnum.Count() > 1)
                     {
-                        Logger.LogInformation("WeaponRestrict: Ambiguous wildcard search for {Mapname} in configs.", Server.MapName);
+                        Logger.LogInformation("Ambiguous wildcard search for {Mapname} in configs.", Server.MapName);
                     }
 
                     // Load the found wildcard config
@@ -282,7 +282,7 @@ namespace WeaponRestrict
                 }
             }
 
-            Logger.LogInformation("WeaponRestrict: Loaded {DefaultPrefix}config for {MapName} (Limits: {Limits}, Quotas: {Quotas})", 
+            Logger.LogInformation("Loaded {DefaultPrefix}config for {MapName} (Limits: {Limits}, Quotas: {Quotas})", 
                         currentMapConfig == null ? "default " : "",
                         Server.MapName, 
                         string.Join(",", WeaponLimits), 
@@ -311,7 +311,7 @@ namespace WeaponRestrict
 
             if (loadedConfig.Version < WeaponRestrictConfig.CONFIG_VERSION)
             {
-                Logger.LogInformation("WeaponRestrict: Outdated config version. Please review the latest changes and update the config version to {NewCfgVersion}", WeaponRestrictConfig.CONFIG_VERSION);
+                Logger.LogInformation("Outdated config version. Please review the latest changes and update the config version to {NewCfgVersion}", WeaponRestrictConfig.CONFIG_VERSION);
             }
 
             // TODO: Somehow check for default values?
@@ -380,7 +380,7 @@ namespace WeaponRestrict
                 return HookResult.Continue;
 
             /*
-            Logger.LogInformation("WeaponRestrict: {Player} is trying to acquire {Weapon} ({Method}) on {Map} (WMUP: {Warmup}, BUYT: {BuyTime})",
+            Logger.LogInformation("{Player} is trying to acquire {Weapon} ({Method}) on {Map} (WMUP: {Warmup}, BUYT: {BuyTime})",
                 client.PlayerName,
                 vdata.Name,
                 hook.GetParam<AcquireMethod>(2),
