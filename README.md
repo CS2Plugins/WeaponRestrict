@@ -2,10 +2,9 @@
 Allows you to restrict weapon based on a percentage quota and a hard cap.
 
 # Installation
-1. Download the `.dll` and `.json` files in the releases page
+1. Download the `.dll` file in the releases page
 2. Create a folder named `WeaponRestrict` in `/game/csgo/addons/counterstrikesharp/plugins` and move the `WeaponRestrict.dll` into the folder you just created
-3. Move the WeaponRestrict.json file into `/game/csgo/addons/counterstrikesharp/gamedata/`
-4. Start the server
+3. Start the server
 5. Configure the auto-generated config in `/game/csgo/addons/counterstrikesharp/configs/plugins/WeaponRestrict/WeaponRestrict.json` to your liking using the guide below
 6. *(Optional) Reload the plugin using `css_plugins reload [plugin index]` to update the loaded config (you can get the index by running `css_plugins list`)*
 
@@ -16,7 +15,7 @@ For `RestrictMessage` use `{0}` for the weapon name and `{1}` for the limit.
 
 For `DisabledMessage` use `{0}` for the weapon name. 
 
-When formatting the messages with colors, use the escaped character code or `{Color.*}` where `*` is the exact name of the field from [this class](https://github.com/roflmuffin/CounterStrikeSharp/blob/e1f9b5635eb21a7e2e31b1783b1b676719f88593/managed/CounterStrikeSharp.API/Modules/Utils/ChatColors.cs#L19). 
+When formatting the messages with colors, use the escaped character code or `{Color.*}` where `*` is the exact name of the field from [this class](https://github.com/roflmuffin/CounterStrikeSharp/blob/5c9d38b2b006e7edf544bb8f185acb4bd5fb6722/managed/CounterStrikeSharp.API/Modules/Utils/ChatColors.cs#L21). 
 
 For example, to use the light purple color use `{Color.LightPurple}` and NOT `{Color.lightPurple}` or any other case variant.
 
