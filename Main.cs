@@ -82,7 +82,7 @@ namespace WeaponRestrict
 
         public override string ModuleVersion => "2.3.1";
 
-        public override string ModuleAuthor => "jon, sapphyrus & FireBird";
+        public override string ModuleAuthor => "jon, sapphyrus, FireBird & stefanx111";
 
         public override string ModuleDescription => "Restricts player weapons based on total player or teammate count.";
 
