@@ -289,12 +289,12 @@ namespace WeaponRestrict
         /// <summary>
 		/// Get all weapon names from <paramref name="config"/>
         /// </summary>
-		private static List<string> GetConfigWeapons(MapConfig config)
+		private static HashSet<string> GetConfigWeapons(MapConfig config)
 		{
-			List<string> weapons = [];
-			weapons.AddRange(config.WeaponLimits.Keys);
-			weapons.AddRange(config.WeaponQuotas.Keys);
-			return [.. weapons.Distinct()];
+			HashSet<string> weapons = [];
+			weapons.UnionWith(config.WeaponLimits.Keys);
+			weapons.UnionWith(config.WeaponQuotas.Keys);
+			return weapons;
 		}
 
         /// <summary>
@@ -333,10 +333,10 @@ namespace WeaponRestrict
             LoadMapConfig();
 
             // Get every restricted weapon and store it
-            List<string> allRestrictedWeapons = GetConfigWeapons(Config.DefaultConfig);
-			foreach (var mapConfigs in Config.MapConfigs.Values)
+            HashSet<string> allRestrictedWeapons = GetConfigWeapons(Config.DefaultConfig);
+			foreach (var mapConfig in Config.MapConfigs.Values)
             {
-                allRestrictedWeapons.AddRange(GetConfigWeapons(mapConfigs));
+                allRestrictedWeapons.UnionWith(GetConfigWeapons(mapConfig));
 			}
 
             RestrictedWeapons.UnionWith(allRestrictedWeapons);
@@ -347,18 +347,18 @@ namespace WeaponRestrict
         private int CountWeaponsOnTeam(string designerName, IEnumerable<CCSPlayerController> players)
         {
             int count = 0;
+            var hasVIPFlag = !string.IsNullOrEmpty(Config.VIPFlag);
 
             foreach (CCSPlayerController player in players)
             {
-                // TODO: Null check can be simplified due to new API changes
-                // VIP, null and alive check
-                if ((Config.VIPFlag != "" && AdminManager.PlayerHasPermissions(player, Config.VIPFlag))
-                    || player.PlayerPawn == null
-                    || !player.PawnIsAlive
-                    || player.PlayerPawn.Value == null
-                    || !player.PlayerPawn.Value.IsValid
-                    || player.PlayerPawn.Value.WeaponServices == null
-                    || player.PlayerPawn.Value.WeaponServices.MyWeapons == null)
+                // Skip VIP players if configured
+                if (hasVIPFlag && AdminManager.PlayerHasPermissions(player, Config.VIPFlag))
+                    continue;
+
+                // Null and alive check
+                if (player.PlayerPawn?.Value?.WeaponServices?.MyWeapons == null 
+                    || !player.PawnIsAlive 
+                    || !player.PlayerPawn.Value.IsValid)
                 {
                     continue;
                 }
@@ -409,7 +409,15 @@ namespace WeaponRestrict
 			// Set current map config
 			CurrentMapConfig = mapConfig;
 
+            // Logging
             var configType = isDefault ? "default " : "";
+            if (CurrentMapConfig.WeaponLimits.Count == 0 && CurrentMapConfig.WeaponQuotas.Count == 0)
+            {
+                Logger.LogInformation("Loaded {ConfigType}config for {MapName} (no restrictions)", 
+                    configType, Server.MapName);
+                return;
+            }
+
             var limits = string.Join(", ", CurrentMapConfig.WeaponLimits.Select(x => $"{x.Key}:{x.Value}"));
             var quotas = string.Join(", ", CurrentMapConfig.WeaponQuotas.Select(x => $"{x.Key}:{x.Value:F2}"));
 
@@ -425,8 +433,9 @@ namespace WeaponRestrict
             int limit = int.MaxValue;
             
             // Get every valid player that is currently connected
+            // Don't filter out dead players here, as they still count towards the limit
             IEnumerable<CCSPlayerController> players = Utilities.GetPlayers().Where(player =>
-                player.IsValid // Unneccessary?
+                player.IsValid
                 && player.Connected == PlayerConnectedState.PlayerConnected
                 && (!Config.DoTeamCheck || player.Team == client.Team)
                 );
@@ -441,6 +450,7 @@ namespace WeaponRestrict
                 limit = Math.Min(limit,
                         cfgQuota > 0f ?
                         // pCount * quota (ex. 10 players and 0.2 quota = 2)
+                        // It's fine to use .Count() here as we only do it once
                         (int)(players.Count() * cfgQuota)
                         : 0);
             }
@@ -509,12 +519,18 @@ namespace WeaponRestrict
                 return HookResult.Continue;
 
             // If the player is picking up the weapon, check if we are in cooldown for printing messages
-            if (acquireMethod == AcquireMethod.PickUp && Config.MessageCooldownSeconds > 0)
+            if (acquireMethod == AcquireMethod.PickUp)
             {
-                if (client.UserId != null)
+                if (Config.MessageCooldownSeconds <= 0)
+                {
+                    // Skip print if negative cooldown (disabled)
+                    hook.SetReturn(AcquireResult.InvalidItem);
+                    return HookResult.Stop;
+                }
+                else if (client.UserId.HasValue)
                 {
                     // Check if we already warned this player recently
-                    if (LastPlayerMessage.TryGetValue((int)client.UserId, out float lastMessageTime)
+                    if (LastPlayerMessage.TryGetValue(client.UserId.Value, out float lastMessageTime)
                         && (Server.CurrentTime - lastMessageTime) < Config.MessageCooldownSeconds)
                     {
                         // Still in cooldown, do not print message
@@ -524,7 +540,7 @@ namespace WeaponRestrict
                     else
                     {
                         // Not in cooldown, update the last message time
-                        LastPlayerMessage[(int)client.UserId] = Server.CurrentTime;
+                        LastPlayerMessage[client.UserId.Value] = Server.CurrentTime;
                     }
                 }
             }

@@ -20,7 +20,9 @@ When formatting the messages with colors, use the escaped character code or `{Co
 
 For example, to use the light purple color use `{Color.LightPurple}` and NOT `{Color.lightPurple}` or any other case variant.
 
-You can configure the minimum delay between messages when a player is attempting to pick up a weapon many times with the `MessageCooldownSeconds` number. It specifies the amount of seconds (with decimal support) between messages. (1.5 = 1 and a half second between messages)
+You can configure the minimum delay between messages when a player is attempting to pick up a weapon many times with the `MessageCooldownSeconds` number. It specifies the amount of seconds (with decimal support) between messages. (1.5 = 1 and a half second between messages). If set to 0 or below, messages will not be sent on pickup.
+
+**Note:** Messages will still be sent when attempting to purchase items.
 
 ## Weapon Restrictions
 The default config is located under `DefaultConfig`. This contains two keys; `WeaponQuotas` and `WeaponLimits`.
